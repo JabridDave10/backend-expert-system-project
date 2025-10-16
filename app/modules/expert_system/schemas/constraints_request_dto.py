@@ -13,6 +13,7 @@ class BudgetConstraints(BaseModel):
 
 
 class TimeConstraints(BaseModel):
+    min_playtime_hours: Optional[int] = Field(default=None, ge=0, description="Tiempo mínimo de juego deseado")
     max_playtime_hours: Optional[int] = Field(default=None, ge=0, description="Tiempo máximo disponible")
 
 
@@ -20,12 +21,19 @@ class ContentConstraints(BaseModel):
     allow_violence: Optional[bool] = Field(default=None)
     age_max: Optional[int] = Field(default=None, ge=0, le=21)
     multiplayer_required: Optional[bool] = Field(default=None)
+    singleplayer_required: Optional[bool] = Field(default=None, description="Requiere modo single-player")
+    coop_required: Optional[bool] = Field(default=None, description="Requiere modo cooperativo")
+    pvp_required: Optional[bool] = Field(default=None, description="Requiere modo PvP/Competitivo")
     offline_required: Optional[bool] = Field(default=None, description="Prefiere juegos jugables offline")
 
 
 class PreferenceConstraints(BaseModel):
     include_genres: List[str] = Field(default_factory=list)
     exclude_genres: List[str] = Field(default_factory=list)
+    include_tags: List[str] = Field(default_factory=list, description="Tags requeridos")
+    exclude_tags: List[str] = Field(default_factory=list, description="Tags a evitar")
+    min_rating: Optional[float] = Field(default=None, ge=0, le=5, description="Rating mínimo")
+    min_metacritic: Optional[int] = Field(default=None, ge=0, le=100, description="Metacritic score mínimo")
 
 
 class DiagnoseRequest(BaseModel):
