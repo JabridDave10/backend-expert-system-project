@@ -221,18 +221,24 @@ async def diagnose(req: DiagnoseRequest):
     matches: List[Dict[str, Any]] = []
     examined = 0
 
+    # Normalizar paginación
+    page_size = req.page_size or 12
+    if req.limit is not None:
+        page_size = req.limit
+    page = req.page or 1
+    start = (page - 1) * page_size
+    end = start + page_size
+
     # Conjunto de tags sensibles para menores
     sensitive_tags = {"nsfw", "nudity", "sexual content", "sexual-content", "hentai", "porn", "erotic", "mature", "violence", "violent", "gore"}
 
     def log(rule: str, before: int, after: int):
         rules_log.append(f"{rule}: {before}->{after}")
 
-    # Stream de evaluación
+    passed = 0
     for item in _store.iter_ndjson(ndjson_path):
         examined += 1
         keep = True
-        current_reasons: List[str] = []
-
         # Normalizar
         genres = [g.get("name") if isinstance(g, dict) else g for g in (item.get("genres") or [])]
         platforms = [
@@ -242,7 +248,6 @@ async def diagnose(req: DiagnoseRequest):
         title = item.get("name") or item.get("title") or ""
         released = item.get("released")
         playtime_hours = int(item.get("playtime") or 0)
-        # Edad
         esrb = (item.get("esrb_rating") or {}).get("name") if item.get("esrb_rating") else None
         age_map = {
             "Everyone": 6,
@@ -254,72 +259,58 @@ async def diagnose(req: DiagnoseRequest):
         age_rating = age_map.get(esrb, 12 if esrb else 12)
 
         # Reglas sensibles por edad o preferencia de violencia
-        if req.content.age_max is not None and req.content.age_max < 18:
+        if keep and req.content.age_max is not None and req.content.age_max < 18:
             if any(any(s in t for s in sensitive_tags) for t in tags):
                 keep = False
-                current_reasons.append("nsfw_or_violent_for_minor")
         if keep and req.content.allow_violence is False:
             if any(any(s in t for s in sensitive_tags) for t in tags):
                 keep = False
-                current_reasons.append("allow_violence=false")
-
-        # Reglas (descartes duros)
-        if req.content.age_max is not None and age_rating > req.content.age_max:
+        if keep and req.content.age_max is not None and age_rating > req.content.age_max:
             keep = False
-            current_reasons.append("age_max")
         if keep and req.content.multiplayer_required is not None:
             is_mp = any("multiplayer" in t for t in tags)
             if req.content.multiplayer_required and not is_mp:
                 keep = False
-                current_reasons.append("multiplayer_required")
             if not req.content.multiplayer_required and is_mp:
                 keep = False
-                current_reasons.append("singleplayer_required")
         if keep and req.preferences.exclude_genres:
             if any(eg.lower() in [g.lower() for g in genres] for eg in req.preferences.exclude_genres):
                 keep = False
-                current_reasons.append("exclude_genres")
         if keep and req.preferences.include_genres:
             if not any(ig.lower() in [g.lower() for g in genres] for ig in req.preferences.include_genres):
                 keep = False
-                current_reasons.append("include_genres")
         if keep and req.hardware.platform:
             if req.hardware.platform.lower() not in [p.lower() for p in platforms]:
                 keep = False
-                current_reasons.append("platform")
         if keep and req.time.max_playtime_hours is not None and playtime_hours > req.time.max_playtime_hours:
             keep = False
-            current_reasons.append("max_playtime_hours")
         if keep and req.content.offline_required:
-            # RAWG no tiene flag fiable para offline; aproximamos: si tiene "online" en tags, descartamos
             if any("online" in t for t in tags):
                 keep = False
-                current_reasons.append("offline_required")
-        if keep and req.budget.max_price is not None:
-            # no hay precio en RAWG; si necesitamos filtrar por precio, por ahora ignoramos o asumimos 0.0
-            pass
+        # Precio: no aplicable (RAWG no da precio)
 
         if not keep:
             continue
 
-        matches.append({
-            "id": item.get("id"),
-            "title": title,
-            "released": released,
-            "genres": genres,
-            "platforms": platforms,
-            "age_rating": age_rating,
-            "playtime_hours": playtime_hours,
-            "background_image": item.get("background_image"),
-        })
-
-        if len(matches) >= req.limit:
-            break
+        if passed >= start and passed < end:
+            matches.append({
+                "id": item.get("id"),
+                "title": title,
+                "released": released,
+                "genres": genres,
+                "platforms": platforms,
+                "age_rating": age_rating,
+                "playtime_hours": playtime_hours,
+                "background_image": item.get("background_image"),
+            })
+            if len(matches) >= page_size:
+                break
+        passed += 1
 
     return {
-        "limit": req.limit,
+        "page": page,
+        "page_size": page_size,
         "matched": len(matches),
         "examined": examined,
         "items": matches,
-        "rules_explained": rules_log,
     }

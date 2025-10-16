@@ -34,4 +34,8 @@ class DiagnoseRequest(BaseModel):
     time: TimeConstraints = Field(default_factory=TimeConstraints)
     content: ContentConstraints = Field(default_factory=ContentConstraints)
     preferences: PreferenceConstraints = Field(default_factory=PreferenceConstraints)
-    limit: int = Field(default=10, ge=1, le=100)
+    # Paginación
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=12, ge=1, le=50)
+    # Compatibilidad: si se envía limit, usarlo como page_size
+    limit: Optional[int] = Field(default=None, ge=1, le=50)
