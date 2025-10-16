@@ -13,7 +13,7 @@ services:
 
   backend:
     build: .
-    container_name: fastapi-backend
+    container_name: backend-expert-system-project
     restart: always
     env_file: .env
     ports:

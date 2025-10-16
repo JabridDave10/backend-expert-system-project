@@ -24,13 +24,46 @@ def create_tables():
     from app.modules.auth.models.role import Role
     from app.modules.auth.models.user_role import UserRole
     from app.modules.auth.models.credentials import Credentials
-    from app.modules.citas.models.cita import Appointment
-    from app.modules.schedules.models.doctor_schedule import DoctorSchedule
-    from app.modules.schedules.models.doctor_availability_exception import DoctorAvailabilityException
-    from app.modules.schedules.models.doctor_settings import DoctorSettings
-    from app.modules.medical_history.models.medical_history import MedicalHistory
 
     print("Creando tablas...")
     print(f"Tablas a crear: {list(Base.metadata.tables.keys())}")
     Base.metadata.create_all(bind=engine)
     print("✅ Tablas creadas exitosamente")
+
+def initialize_default_roles():
+    """Inicializar roles por defecto (usuario y admin)"""
+    from app.modules.auth.models.role import Role
+    
+    db = SessionLocal()
+    try:
+        # Verificar si ya existen los roles
+        existing_roles = db.query(Role).all()
+        existing_role_names = [role.name for role in existing_roles]
+        
+        # Definir roles por defecto
+        default_roles = [
+            {"name": "usuario", "description": "Rol de usuario estándar"},
+            {"name": "admin", "description": "Rol de administrador del sistema"}
+        ]
+        
+        # Crear roles que no existen
+        for role_data in default_roles:
+            if role_data["name"] not in existing_role_names:
+                new_role = Role(
+                    name=role_data["name"],
+                    description=role_data["description"]
+                )
+                db.add(new_role)
+                print(f"✅ Rol '{role_data['name']}' creado exitosamente")
+            else:
+                print(f"ℹ️  Rol '{role_data['name']}' ya existe")
+        
+        db.commit()
+        print("✅ Inicialización de roles completada")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error al inicializar roles: {e}")
+        raise e
+    finally:
+        db.close()

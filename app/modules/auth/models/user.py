@@ -8,25 +8,10 @@ class User(Base):
     id_user = Column(Integer, primary_key=True, index=True)
     firstName = Column(String(100), nullable=False)
     lastName = Column(String(100), nullable=False)
-    identification = Column(String(20), nullable=False)
+    username = Column(String(100), nullable=False)
     phone = Column(String(20))
     id_status = Column(Boolean, default=True)
 
     # Relaciones
     user_roles = relationship("UserRole", back_populates="user")
     credentials = relationship("Credentials", back_populates="user")
-    appointments_as_patient = relationship("Appointment", foreign_keys="Appointment.patient_id", back_populates="patient")
-    appointments_as_doctor = relationship("Appointment", foreign_keys="Appointment.doctor_id", back_populates="doctor")
-
-    # Legacy relationships for backward compatibility
-    citas_como_paciente = relationship("Appointment", foreign_keys="Appointment.patient_id", back_populates="patient")
-    citas_como_doctor = relationship("Appointment", foreign_keys="Appointment.doctor_id", back_populates="doctor")
-
-    # Schedule relationships
-    schedules = relationship("DoctorSchedule", back_populates="doctor")
-    availability_exceptions = relationship("DoctorAvailabilityException", back_populates="doctor")
-    doctor_settings = relationship("DoctorSettings", back_populates="doctor", uselist=False)
-    
-    # Medical history relationships
-    medical_histories_as_patient = relationship("MedicalHistory", foreign_keys="MedicalHistory.id_patient", back_populates="patient")
-    medical_histories_as_doctor = relationship("MedicalHistory", foreign_keys="MedicalHistory.id_doctor", back_populates="doctor")

@@ -32,18 +32,18 @@ class RegisterService:
             raise ValueError("El email ya está registrado")
         
         # Verificar si la identificación ya existe
-        print("🔍 REGISTER_SERVICE: Verificando identificación existente")
-        existing_id = self.db.query(User).filter(User.identification == data.identification).first()
+        print("🔍 REGISTER_SERVICE: Verificando username existente")
+        existing_id = self.db.query(User).filter(User.username == data.username).first()
         if existing_id:
-            print("❌ REGISTER_SERVICE: Identificación ya existe")
-            raise ValueError("La identificación ya está registrada")
+            print("❌ REGISTER_SERVICE: Username ya existe")
+            raise ValueError("El username ya está registrado")
         
         # Crear nuevo usuario
         print("🔍 REGISTER_SERVICE: Creando nuevo usuario")
         new_user = User(
             firstName=data.firstName,
             lastName=data.lastName,
-            identification=data.identification,
+            username=data.username,
             phone=data.phone,
             id_status=True
         )

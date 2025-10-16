@@ -29,7 +29,7 @@ class UserService:
             id_user=user.id_user,
             firstName=user.firstName,
             lastName=user.lastName,
-            identification=user.identification,
+            username=user.username,
             phone=user.phone or "",
             email=credentials.email if credentials else "",
             id_status=user.id_status,
@@ -54,7 +54,7 @@ class UserService:
                 id_user=user.id_user,
                 firstName=user.firstName,
                 lastName=user.lastName,
-                identification=user.identification,
+                username=user.username,
                 phone=user.phone or "",
                 email=credentials.email if credentials else "",
                 id_status=user.id_status,
@@ -133,7 +133,7 @@ class UserService:
                 or_(
                     User.firstName.ilike(search_term),
                     User.lastName.ilike(search_term),
-                    User.identification.ilike(search_term),
+                    User.username.ilike(search_term),
                     (User.firstName + ' ' + User.lastName).ilike(search_term)
                 )
             )
@@ -156,7 +156,7 @@ class UserService:
                 id_user=user.id_user,
                 firstName=user.firstName,
                 lastName=user.lastName,
-                identification=user.identification,
+                username=user.username,
                 phone=user.phone or "",
                 email=credentials.email if credentials else "",
                 id_status=user.id_status,

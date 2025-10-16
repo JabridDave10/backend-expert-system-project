@@ -4,7 +4,7 @@ from typing import Optional
 class CreateUserDto(BaseModel):
     firstName: str
     lastName: str
-    identification: str
+    username: str
     phone: str
     email: str
     password: str

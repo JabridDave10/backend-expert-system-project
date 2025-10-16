@@ -5,7 +5,7 @@ class UserResponseDto(BaseModel):
     id_user: int
     firstName: str
     lastName: str
-    identification: str
+    username: str
     phone: str
     email: str
     id_status: bool

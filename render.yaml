@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: medcitas-backend
+    name: expert-system-backend
     env: python
     buildCommand: "pip install -r requirements.txt"
     healthCheckPath: "/health/"
@@ -9,10 +9,10 @@ services:
         value: 3.11.0
       - key: DATABASE_URL
         fromDatabase:
-          name: medcitas-db
+          name: expert-system-db
           property: connectionString
 
 databases:
-  - name: medcitas-db
-    databaseName: medcitas
-    user: medcitas_user
+  - name: expert-system-db
+    databaseName: expert-system
+    user: expert-system_user
