@@ -12,6 +12,7 @@ from app.modules.auth.routers.user_router import router as user_router
 from app.modules.auth.routers.auth_router import router as auth_router
 from app.modules.register.routers.register_router import router as register_router
 from app.modules.expert_system.routers.expert_system_router import router as expert_system_router
+from app.modules.expert_system.routers.knowledge_router import router as knowledge_router
 # from app.modules.assistantAI.routers.assistantAI_router import router as assistantAI_router
 # from app.modules.schedules.routers.schedule_router import router as schedule_router
 # from app.modules.medical_history.routers.medical_history_router import router as medical_history_router
@@ -25,7 +26,7 @@ configure_middleware(app)
 async def startup_event():
     create_tables()
     initialize_default_roles()
-    print("[startup] Routers registrados: users, auth, register, expert-system")
+    print("[startup] Routers registrados: users, auth, register, expert-system, knowledge")
 
 # app.include_router(health.router)
 # app.include_router(citas.router)  # Main appointments router
@@ -36,6 +37,7 @@ app.include_router(user_router)
 app.include_router(auth_router)
 app.include_router(register_router)
 app.include_router(expert_system_router)
+app.include_router(knowledge_router)
 # app.include_router(assistantAI_router)
 # app.include_router(schedule_router)
 # app.include_router(medical_history_router)
@@ -44,12 +46,17 @@ app.include_router(expert_system_router)
 @app.head("/")
 def read_root():
     return {
-        "message": "Backend funcionando 🚀",
+        "message": "Backend funcionando 🚀 - Expert System v2.0",
         "endpoints": {
             "users": "/users/",
             "auth": "/auth/",
             "register": "/register/",
-            "expert-system": "/expert-system/recommend",
+            "expert-system-legacy": "/expert-system/recommend",
+            "expert-system-v2": "/expert-system/infer",
+            "knowledge-base-rules": "/knowledge/rules",
+            "knowledge-base-facts": "/knowledge/facts",
+            "knowledge-stats": "/knowledge/stats",
+            "inference-sessions": "/expert-system/sessions",
             "docs": "/docs",
             "redoc": "/redoc"
         }

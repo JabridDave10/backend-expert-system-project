@@ -20,10 +20,18 @@ Base = declarative_base()
 
 def create_tables():
     """Crear todas las tablas en la base de datos"""
+    # Auth models
     from app.modules.auth.models.user import User
     from app.modules.auth.models.role import Role
     from app.modules.auth.models.user_role import UserRole
     from app.modules.auth.models.credentials import Credentials
+
+    # Expert system models
+    from app.modules.expert_system.models.fact import Fact
+    from app.modules.expert_system.models.rule import Rule
+    from app.modules.expert_system.models.inference_session import InferenceSession
+    from app.modules.expert_system.models.inference_log import InferenceLog
+    from app.modules.expert_system.models.recommendation import Recommendation
 
     print("Creando tablas...")
     print(f"Tablas a crear: {list(Base.metadata.tables.keys())}")

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse
 
@@ -425,3 +425,178 @@ async def diagnose(req: DiagnoseRequest):
         "examined": examined,
         "items": matches,
     }
+
+
+# ===========================
+# NUEVO MOTOR DE INFERENCIA
+# ===========================
+
+from app.core.database import SessionLocal
+from app.modules.expert_system.services.inference_service import InferenceService
+from app.modules.expert_system.schemas.inference_dto import (
+    InferenceRequestDTO,
+    InferenceResponseDTO,
+    ExplanationResponseDTO,
+    SessionListResponse,
+    SessionDTO,
+)
+from app.modules.expert_system.inference.conflict_resolver import ConflictResolutionStrategy
+
+
+# Dependency para obtener DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("/infer", response_model=InferenceResponseDTO)
+async def run_inference(request: InferenceRequestDTO, db = Depends(get_db)):
+    """
+    Ejecuta una sesión de inferencia usando el motor de inferencia del sistema experto.
+
+    Este endpoint implementa el algoritmo de Forward Chaining:
+    1. Carga reglas activas de la base de conocimiento
+    2. Parte de los hechos iniciales proporcionados
+    3. Aplica reglas iterativamente hasta alcanzar conclusiones
+    4. Genera explicación detallada del razonamiento
+
+    Args:
+        request: Solicitud de inferencia con hechos iniciales y configuración
+
+    Returns:
+        Resultado completo de la inferencia con conclusiones y explicación
+    """
+    try:
+        # Convertir initial_facts de Pydantic a dict
+        initial_facts_data = [fact.model_dump() for fact in request.initial_facts]
+
+        # Convertir strategy string a enum
+        strategy_map = {
+            "priority": ConflictResolutionStrategy.PRIORITY,
+            "specificity": ConflictResolutionStrategy.SPECIFICITY,
+            "recency": ConflictResolutionStrategy.RECENCY,
+            "combined": ConflictResolutionStrategy.COMBINED,
+        }
+        conflict_strategy = strategy_map.get(request.conflict_strategy, ConflictResolutionStrategy.COMBINED)
+
+        # Ejecutar inferencia
+        result = InferenceService.run_inference(
+            db=db,
+            initial_facts_data=initial_facts_data,
+            goal=request.goal,
+            max_iterations=request.max_iterations,
+            user_id=None,  # TODO: Obtener de token JWT si está autenticado
+            conflict_strategy=conflict_strategy,
+            active_rules_only=request.active_rules_only,
+        )
+
+        return InferenceResponseDTO(**result)
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"Error in /infer endpoint: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+
+
+@router.get("/sessions/{session_id}/explain", response_model=ExplanationResponseDTO)
+async def get_session_explanation(session_id: int, db = Depends(get_db)):
+    """
+    Obtiene la explicación detallada de una sesión de inferencia.
+
+    Proporciona trazabilidad completa del razonamiento:
+    - Qué reglas se dispararon y en qué orden
+    - Qué hechos cumplieron cada regla
+    - Por qué se llegó a las conclusiones finales
+    - Cadena completa de razonamiento
+
+    Args:
+        session_id: ID de la sesión de inferencia
+
+    Returns:
+        Explicación completa del razonamiento
+    """
+    explanation = InferenceService.get_session_explanation(db, session_id)
+
+    if not explanation:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    return ExplanationResponseDTO(**explanation)
+
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def get_sessions(
+    page: int = 1,
+    page_size: int = 10,
+    db = Depends(get_db)
+):
+    """
+    Lista las sesiones de inferencia.
+
+    TODO: Filtrar por user_id cuando haya autenticación
+
+    Args:
+        page: Número de página
+        page_size: Tamaño de página
+
+    Returns:
+        Lista de sesiones
+    """
+    from app.modules.expert_system.models.inference_session import InferenceSession
+
+    skip = (page - 1) * page_size
+
+    sessions = (
+        db.query(InferenceSession)
+        .order_by(InferenceSession.created_at.desc())
+        .offset(skip)
+        .limit(page_size)
+        .all()
+    )
+
+    total = db.query(InferenceSession).count()
+
+    return SessionListResponse(
+        sessions=[SessionDTO.model_validate(s) for s in sessions],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=SessionDTO)
+async def get_session(session_id: int, db = Depends(get_db)):
+    """
+    Obtiene una sesión de inferencia por ID.
+
+    Args:
+        session_id: ID de la sesión
+
+    Returns:
+        Sesión solicitada
+    """
+    session = InferenceService.get_session(db, session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    return SessionDTO.model_validate(session)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(session_id: int, db = Depends(get_db)):
+    """
+    Elimina una sesión de inferencia y todos sus datos relacionados.
+
+    Args:
+        session_id: ID de la sesión
+    """
+    success = InferenceService.delete_session(db, session_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
