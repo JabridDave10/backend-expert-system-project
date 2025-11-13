@@ -40,14 +40,13 @@ class AdminGameService:
         new_game = Game(
             name=game_data.name,
             slug=game_data.slug,
-            description=game_data.description,
             released=game_data.released,
             metacritic=game_data.metacritic,
             rating=game_data.rating,
             genres_json=game_data.genres_json,
             parent_platforms_json=game_data.parent_platforms_json,
             tags_json=game_data.tags_json,
-            esrb_rating_name=game_data.esrb_rating_name,
+            esrb_rating=game_data.esrb_rating,
             background_image=game_data.background_image,
             playtime=game_data.playtime
         )
