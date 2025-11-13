@@ -32,13 +32,17 @@ async def login(login_data: LoginRequest, response: Response, db: Session = Depe
         )
         
         # Configurar cookie HttpOnly
+        # En desarrollo (HTTP) usar secure=False, en producción (HTTPS) usar secure=True
+        import os
+        is_production = os.getenv("ENVIRONMENT", "development") == "production"
+
         response.set_cookie(
             key="auth_token",
             value=access_token,
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convertir minutos a segundos
             httponly=True,
-            secure=True,  # HTTPS requerido para cross-origin
-            samesite="none"  # Permitir cross-origin cookies
+            secure=is_production,  # Solo HTTPS en producción
+            samesite="lax" if not is_production else "none"  # lax en desarrollo, none en producción
         )
         
         return LoginResponse(
@@ -73,12 +77,15 @@ async def logout(response: Response):
     """
     Cerrar sesión - eliminar cookie HttpOnly
     """
+    import os
+    is_production = os.getenv("ENVIRONMENT", "development") == "production"
+
     # Eliminar la cookie HttpOnly
     response.delete_cookie(
         key="auth_token",
         httponly=True,
-        secure=True,  # HTTPS requerido para cross-origin
-        samesite="none"
+        secure=is_production,  # Solo HTTPS en producción
+        samesite="lax" if not is_production else "none"
     )
-    
+
     return {"message": "Sesión cerrada exitosamente"}
