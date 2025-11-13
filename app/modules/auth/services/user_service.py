@@ -197,7 +197,7 @@ class UserService:
 
         print("✅ USER_SERVICE: Información del usuario obtenida correctamente")
         return {
-            "id_user": user.id_user,
+            "id": user.id_user,  # Cambiado de id_user a id para coincidir con UserInfo schema
             "firstName": user.firstName,
             "lastName": user.lastName,
             "email": credentials.email,
