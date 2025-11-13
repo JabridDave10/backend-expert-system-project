@@ -18,6 +18,14 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+def get_db():
+    """Dependencia de FastAPI para obtener sesión de base de datos"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def create_tables():
     """Crear todas las tablas en la base de datos"""
     # Auth models
@@ -50,8 +58,8 @@ def initialize_default_roles():
         
         # Definir roles por defecto
         default_roles = [
-            {"name": "usuario", "description": "Rol de usuario estándar"},
-            {"name": "admin", "description": "Rol de administrador del sistema"}
+            {"name": "player", "description": "Jugador - Usuario estándar del sistema"},
+            {"name": "admin", "description": "Administrador - Control total del sistema"}
         ]
         
         # Crear roles que no existen
