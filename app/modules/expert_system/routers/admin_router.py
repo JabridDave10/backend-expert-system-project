@@ -474,3 +474,134 @@ def duplicate_rule(
         return rule
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================
+# ENDPOINTS DE GESTIÓN DE GAME-RULE ASSIGNMENTS
+# ============================================
+
+@router.get("/games/{game_id}/rules")
+def get_game_rules(
+    game_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtener todas las reglas asignadas a un juego específico
+
+    Args:
+        game_id: ID del juego
+        db: Sesión de base de datos
+
+    Returns:
+        Lista de IDs de reglas asignadas al juego
+    """
+    from app.modules.expert_system.models.game_rule import GameRule
+
+    game_rules = db.query(GameRule).filter(GameRule.game_id == game_id).all()
+    rule_ids = [gr.rule_id for gr in game_rules]
+
+    return {"game_id": game_id, "rule_ids": rule_ids}
+
+
+@router.post("/games/{game_id}/rules")
+def assign_rule_to_game(
+    game_id: int,
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Asignar una regla a un juego
+
+    Args:
+        game_id: ID del juego
+        request: Diccionario con rule_id
+        db: Sesión de base de datos
+
+    Returns:
+        Confirmación de la asignación
+
+    Raises:
+        HTTPException 400: Si la regla ya está asignada al juego
+        HTTPException 404: Si el juego o la regla no existen
+    """
+    from app.modules.expert_system.models.game_rule import GameRule
+    from app.modules.expert_system.models.game import Game
+    from app.modules.expert_system.models.rule import Rule
+
+    rule_id = request.get("rule_id")
+
+    if not rule_id:
+        raise HTTPException(status_code=400, detail="rule_id es requerido")
+
+    # Verificar que el juego existe
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Juego no encontrado")
+
+    # Verificar que la regla existe
+    rule = db.query(Rule).filter(Rule.id == rule_id).first()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Regla no encontrada")
+
+    # Verificar si ya existe la asignación
+    existing = db.query(GameRule).filter(
+        GameRule.game_id == game_id,
+        GameRule.rule_id == rule_id
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="La regla ya está asignada a este juego")
+
+    # Crear la asignación
+    game_rule = GameRule(game_id=game_id, rule_id=rule_id)
+    db.add(game_rule)
+    db.commit()
+    db.refresh(game_rule)
+
+    return {
+        "success": True,
+        "message": "Regla asignada correctamente",
+        "game_id": game_id,
+        "rule_id": rule_id
+    }
+
+
+@router.delete("/games/{game_id}/rules/{rule_id}")
+def unassign_rule_from_game(
+    game_id: int,
+    rule_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Desasignar una regla de un juego
+
+    Args:
+        game_id: ID del juego
+        rule_id: ID de la regla
+        db: Sesión de base de datos
+
+    Returns:
+        Confirmación de la desasignación
+
+    Raises:
+        HTTPException 404: Si la asignación no existe
+    """
+    from app.modules.expert_system.models.game_rule import GameRule
+
+    game_rule = db.query(GameRule).filter(
+        GameRule.game_id == game_id,
+        GameRule.rule_id == rule_id
+    ).first()
+
+    if not game_rule:
+        raise HTTPException(status_code=404, detail="Esta regla no está asignada a este juego")
+
+    db.delete(game_rule)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Regla desasignada correctamente",
+        "game_id": game_id,
+        "rule_id": rule_id
+    }
