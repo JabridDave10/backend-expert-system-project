@@ -28,8 +28,8 @@ class Recommendation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("inference_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
-    game_id = Column(Integer, nullable=False, index=True)
-    game_title = Column(String(255), nullable=False)
+    game_id = Column(Integer, ForeignKey("games.id", ondelete="CASCADE"), nullable=False, index=True)
+    game_title = Column(String(255), nullable=False)  # Desnormalizado para performance
     confidence = Column(Float, default=0.0)  # 0.0 a 1.0
     score = Column(Float, default=0.0)
     justification = Column(Text, nullable=True)
@@ -40,6 +40,7 @@ class Recommendation(Base):
 
     # Relationships
     session = relationship("InferenceSession", back_populates="recommendations")
+    game = relationship("Game", back_populates="recommendations")
 
     def __repr__(self):
         return f"<Recommendation(game={self.game_title}, confidence={self.confidence}, rank={self.rank})>"

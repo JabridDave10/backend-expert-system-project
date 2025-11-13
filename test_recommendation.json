@@ -1,0 +1,11 @@
+{
+  "initial_facts": [
+    {"entity": "user", "attribute": "prefers_genre", "value": "RPG"},
+    {"entity": "user", "attribute": "wants_quality", "value": true},
+    {"entity": "user", "attribute": "prefers_multiplayer", "value": false},
+    {"entity": "user", "attribute": "min_age", "value": 18}
+  ],
+  "goal": "recommend_game",
+  "max_iterations": 50,
+  "conflict_strategy": "combined"
+}

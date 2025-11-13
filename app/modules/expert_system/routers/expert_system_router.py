@@ -11,7 +11,7 @@ from app.modules.expert_system.services.expert_engine import ExpertEngine
 from app.modules.expert_system.services.rawg_client import RawgClient
 from app.modules.expert_system.services.catalog_store import CatalogStore
 
-router = APIRouter(prefix="/expert-system", tags=["expert-system"])
+router = APIRouter(prefix="/api/expert-system", tags=["expert-system"])
 
 _engine = ExpertEngine()
 _store = CatalogStore(file_path="app_data/catalog_games.json")

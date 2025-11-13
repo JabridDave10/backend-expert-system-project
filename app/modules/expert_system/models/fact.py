@@ -62,13 +62,16 @@ class Fact(Base):
 
     def get_typed_value(self):
         """Retorna el valor con el tipo correcto"""
-        if self.value_type == "int":
+        # Normalizar aliases de tipos
+        value_type = self.value_type.lower() if self.value_type else "string"
+
+        if value_type in ("int", "integer"):
             return int(self.value)
-        elif self.value_type == "float":
+        elif value_type == "float":
             return float(self.value)
-        elif self.value_type == "bool":
+        elif value_type in ("bool", "boolean"):
             return self.value.lower() in ("true", "1", "yes")
-        elif self.value_type == "list":
+        elif value_type == "list":
             import json
             return json.loads(self.value)
         else:

@@ -108,42 +108,81 @@ class InferenceEngine:
             print(f"   Initial facts: {self.working_memory.count()}")
             print(f"   Available rules: {len(self.rules)}")
 
+            # Mantener track de reglas ya disparadas
+            fired_rule_ids = set()
+
             # Iterar hasta alcanzar conclusión o máximo de iteraciones
             for iteration in range(1, max_iterations + 1):
                 self.iteration_count = iteration
 
                 # PASO 1: Pattern Matching - Encontrar reglas aplicables
-                applicable_rules = self.pattern_matcher.find_matching_rules(self.rules)
+                if iteration > 1:
+                    print(f"   DEBUG iter {iteration}: Evaluating {len(self.rules)} total rules")
+                    filter_rules = [r for r in self.rules if 'filter' in r.category.lower()]
+                    print(f"   DEBUG iter {iteration}: {len(filter_rules)} filter rules available")
+                all_applicable_rules = self.pattern_matcher.find_matching_rules(self.rules)
+
+                # Filtrar reglas que no han sido disparadas
+                applicable_rules = [
+                    (rule, facts) for rule, facts in all_applicable_rules
+                    if rule.id not in fired_rule_ids
+                ]
 
                 if not applicable_rules:
-                    print(f"   Iteration {iteration}: No applicable rules found. Stopping.")
+                    print(f"   Iteration {iteration}: No more applicable rules. Stopping.")
+                    # Debug: mostrar por qué no hay reglas aplicables
+                    if iteration > 1:
+                        from collections import Counter
+                        all_facts = self.working_memory.get_all_facts()
+                        entities = Counter([f.entity for f in all_facts])
+                        print(f"   DEBUG: Total facts: {len(all_facts)}, Entities: {dict(entities)}")
+                        print(f"   DEBUG: Total rules: {len(self.rules)}, Already fired: {len(fired_rule_ids)}")
                     break
 
                 print(f"   Iteration {iteration}: {len(applicable_rules)} applicable rules")
 
-                # PASO 2: Conflict Resolution - Seleccionar mejor regla
-                selected = self.conflict_resolver.resolve(applicable_rules)
+                # MODO RECOMENDACIÓN: Disparar TODAS las reglas aplicables
+                # En vez de resolver conflictos y seleccionar una sola
+                if goal == "recommend_game":
+                    rules_fired_count = 0
+                    for rule, facts_used in applicable_rules:
+                        new_facts = self.fire_rule(rule, facts_used, iteration)
+                        if new_facts:
+                            rules_fired_count += 1
+                            fired_rule_ids.add(rule.id)
 
-                if not selected:
-                    print(f"   Iteration {iteration}: Conflict resolution failed. Stopping.")
-                    break
+                    print(f"   Iteration {iteration}: Fired {rules_fired_count} recommendation rules")
 
-                rule, facts_used = selected
-                print(f"   Iteration {iteration}: Selected rule '{rule.name}' (priority={rule.priority})")
+                    # Si no se dispararon más reglas, terminamos
+                    if rules_fired_count == 0:
+                        break
 
-                # PASO 3: Fire Rule - Ejecutar la regla
-                new_facts = self.fire_rule(rule, facts_used, iteration)
+                else:
+                    # MODO NORMAL: Usar conflict resolution (una regla por vez)
+                    # PASO 2: Conflict Resolution - Seleccionar mejor regla
+                    selected = self.conflict_resolver.resolve(applicable_rules)
 
-                if not new_facts:
-                    print(f"   Iteration {iteration}: Rule '{rule.name}' produced no new facts. Stopping.")
-                    break
+                    if not selected:
+                        print(f"   Iteration {iteration}: Conflict resolution failed. Stopping.")
+                        break
 
-                print(f"   Iteration {iteration}: Added {len(new_facts)} new facts")
+                    rule, facts_used = selected
+                    print(f"   Iteration {iteration}: Selected rule '{rule.name}' (priority={rule.priority})")
 
-                # Verificar si alcanzamos el objetivo
-                if goal and self.check_goal_reached(goal):
-                    print(f"   Iteration {iteration}: Goal '{goal}' reached!")
-                    break
+                    # PASO 3: Fire Rule - Ejecutar la regla
+                    new_facts = self.fire_rule(rule, facts_used, iteration)
+                    fired_rule_ids.add(rule.id)
+
+                    if not new_facts:
+                        print(f"   Iteration {iteration}: Rule '{rule.name}' produced no new facts. Stopping.")
+                        break
+
+                    print(f"   Iteration {iteration}: Added {len(new_facts)} new facts")
+
+                    # Verificar si alcanzamos el objetivo
+                    if goal and self.check_goal_reached(goal):
+                        print(f"   Iteration {iteration}: Goal '{goal}' reached!")
+                        break
 
             # Generar resultado
             result.success = True
@@ -208,11 +247,36 @@ class InferenceEngine:
 
             elif action_type == "recommend":
                 # Crear recomendación (como hecho especial)
+                # Usamos entidad única por recomendación: recommendation_{game_id}
                 game_id = action.get("game_id")
                 confidence = action.get("confidence", 1.0)
                 reason = action.get("reason", "")
 
-                fact = Fact(
+                # Crear hechos para esta recomendación específica
+                entity_name = f"recommendation_{game_id}"
+
+                fact_id = Fact(
+                    entity=entity_name,
+                    attribute="game_id",
+                    value=str(game_id),
+                    value_type="integer",
+                    confidence=confidence,
+                    source="inferred",
+                    is_temporary=True,
+                )
+
+                fact_conf = Fact(
+                    entity=entity_name,
+                    attribute="confidence",
+                    value=str(confidence),
+                    value_type="float",
+                    confidence=confidence,
+                    source="inferred",
+                    is_temporary=True,
+                )
+
+                # También mantener el formato antiguo para backward compatibility
+                fact_legacy = Fact(
                     entity="recommendation",
                     attribute=f"game_{game_id}",
                     value=str(confidence),
@@ -221,8 +285,11 @@ class InferenceEngine:
                     source="inferred",
                     is_temporary=True,
                 )
-                new_facts.append(fact)
-                self.working_memory.add_fact(fact)
+
+                new_facts.extend([fact_id, fact_conf, fact_legacy])
+                self.working_memory.add_fact(fact_id)
+                self.working_memory.add_fact(fact_conf)
+                self.working_memory.add_fact(fact_legacy)
 
             elif action_type == "set_conclusion":
                 # Establecer conclusión
@@ -240,6 +307,23 @@ class InferenceEngine:
                 )
                 new_facts.append(fact)
                 self.working_memory.add_fact(fact)
+
+            elif action_type == "retract_fact":
+                # Eliminar un hecho de la memoria de trabajo (descarte/filtrado)
+                entity = action.get("entity")
+                attribute = action.get("attribute")
+                value = action.get("value")
+
+                # Para recomendaciones, el attribute es "game_{id}"
+                # Necesitamos construir el attribute correcto
+                if entity == "recommendation" and value:
+                    attribute = f"game_{value}"
+
+                # Eliminar el hecho
+                removed = self.working_memory.remove_fact(entity, attribute)
+                if removed:
+                    reason = action.get("reason", "filtrado")
+                    print(f"      🗑️  Descartado: {entity}.{attribute} - {reason}")
 
         # Registrar regla disparada
         self.fired_rules.append({

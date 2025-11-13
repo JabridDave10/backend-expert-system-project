@@ -20,6 +20,7 @@ from app.modules.expert_system.models.rule import Rule
 from app.modules.expert_system.models.inference_session import InferenceSession
 from app.modules.expert_system.models.inference_log import InferenceLog
 from app.modules.expert_system.models.recommendation import Recommendation
+from app.modules.expert_system.models.game import Game
 
 from app.modules.expert_system.services.rule_service import RuleService
 from app.modules.expert_system.services.fact_service import FactService
@@ -75,8 +76,8 @@ class InferenceService:
                 user_id=user_id,
             )
 
-            # PASO 2: Cargar reglas desde BD
-            rules = RuleService.get_all_rules(db, active_only=active_rules_only)
+            # PASO 2: Cargar reglas desde BD (sin límite para el motor de inferencia)
+            rules = RuleService.get_all_rules(db, active_only=active_rules_only, limit=20000)
 
             if not rules:
                 raise ValueError("No rules found in knowledge base")
@@ -84,11 +85,26 @@ class InferenceService:
             # PASO 3: Crear hechos iniciales como objetos Fact (temporales)
             initial_facts = []
             for fact_data in initial_facts_data:
+                value = fact_data.get("value")
+
+                # SIEMPRE auto-detectar el tipo desde el valor Python real
+                # (ignorar value_type del frontend que puede estar mal)
+                if isinstance(value, bool):  # Debe ir ANTES de int (bool es subclass de int)
+                    value_type = "boolean"
+                elif isinstance(value, int):
+                    value_type = "integer"
+                elif isinstance(value, float):
+                    value_type = "float"
+                elif isinstance(value, str):
+                    value_type = "string"
+                else:
+                    value_type = "string"
+
                 fact = Fact(
                     entity=fact_data.get("entity"),
                     attribute=fact_data.get("attribute"),
-                    value=str(fact_data.get("value")),
-                    value_type=fact_data.get("value_type", "string"),
+                    value=str(value),
+                    value_type=value_type,
                     confidence=fact_data.get("confidence", 1.0),
                     source="user_input",
                     is_temporary=True,
@@ -218,7 +234,17 @@ class InferenceService:
         session_id: int,
         conclusions: List[Dict[str, Any]],
     ) -> List[Recommendation]:
-        """Crea registros de recomendaciones."""
+        """
+        Crea registros de recomendaciones consultando la base de datos de juegos.
+
+        Args:
+            db: Sesión de base de datos
+            session_id: ID de la sesión de inferencia
+            conclusions: Lista de conclusiones del motor de inferencia
+
+        Returns:
+            Lista de recomendaciones creadas
+        """
         recommendations = []
         rank = 1
 
@@ -226,9 +252,54 @@ class InferenceService:
             if conclusion.get("type") == "recommendation":
                 game_id = conclusion.get("game_id")
                 confidence = conclusion.get("confidence", 0.0)
+                reason = conclusion.get("reason", "")
 
-                # TODO: Buscar título del juego en catálogo
-                game_title = f"Game {game_id}"
+                # Buscar juego en la base de datos
+                game = db.query(Game).filter(Game.id == game_id).first()
+
+                if game:
+                    # Extraer información del juego desde el modelo
+                    game_title = game.name
+                    genres = game.get_genres_list()
+                    platforms = game.get_platforms_list()
+                    rating = game.rating
+                    image_url = game.background_image or ""
+                    released = game.released or ""
+
+                    # Construir justificación
+                    justification_parts = []
+                    if reason:
+                        justification_parts.append(reason)
+                    if genres:
+                        justification_parts.append(f"Géneros: {', '.join(genres[:3])}")
+                    if rating:
+                        justification_parts.append(f"Rating: {rating}/5.0")
+                    if platforms:
+                        justification_parts.append(f"Plataformas: {', '.join(platforms[:3])}")
+                    if released:
+                        justification_parts.append(f"Lanzamiento: {released}")
+
+                    justification = " | ".join(justification_parts)
+
+                    # Construir reasons_json con metadata
+                    reasons_json = {
+                        "rule_reason": reason,
+                        "genres": genres,
+                        "platforms": platforms,
+                        "rating": rating,
+                        "metacritic": game.metacritic,
+                        "image_url": image_url,
+                        "released": released,
+                        "playtime": game.playtime,
+                        "esrb_rating": game.esrb_rating,
+                    }
+
+                else:
+                    # Si no encontramos el juego en la BD, usar valores por defecto
+                    game_title = f"Game {game_id}"
+                    justification = reason if reason else "Recommended by expert system"
+                    reasons_json = {"rule_reason": reason}
+                    print(f"⚠️  Warning: Game {game_id} not found in database")
 
                 recommendation = Recommendation(
                     session_id=session_id,
@@ -236,6 +307,8 @@ class InferenceService:
                     game_title=game_title,
                     confidence=confidence,
                     rank=rank,
+                    justification=justification,
+                    reasons_json=reasons_json,
                 )
 
                 recommendations.append(recommendation)

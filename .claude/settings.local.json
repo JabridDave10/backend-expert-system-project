@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Read(//c/Users/diego/OneDrive/Escritorio/Expertos/frontend-expert-system-project/**)",
+      "Bash(dir:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker restart:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
